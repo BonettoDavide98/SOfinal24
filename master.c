@@ -61,6 +61,8 @@ int main (int argc, char ** argv) {
 	int * totalsent;
 	int * totaldelivered;
 	int * totalport;
+	int * mostavailable;
+	int * mostrequested;
 
 	int flag = 1;
 	int timeended = 0;
@@ -139,8 +141,14 @@ int main (int argc, char ** argv) {
 	ports_positions[3].y = parameters.SO_LATO;
 
 	totalgenerated = malloc((1 + parameters.SO_MERCI) * sizeof(int));
+	mostavailable = malloc((1 + parameters.SO_MERCI * 2) * sizeof(int));
+	mostrequested = malloc((1 + parameters.SO_MERCI * 2) * sizeof(int));
 	for(i = 0; i < parameters.SO_MERCI + 1; i++) {
 		totalgenerated[i] = 0;
+	}
+	for(i = 0; i < parameters.SO_MERCI * 2 + 1; i++) {
+		mostavailable[i] = 0;
+		mostrequested[i] = 0;
 	}
 
 	/*create ports*/
@@ -205,12 +213,20 @@ int main (int argc, char ** argv) {
 				case 0:
 					ports_shm_ptr_aval[i][a].type = j;
 					ports_shm_ptr_aval[i][a].qty = temparray[j];
+					if(temparray[j] > mostavailable[j + parameters.SO_MERCI]) {
+						mostavailable[j + parameters.SO_MERCI] = temparray[j];
+						mostavailable[j] = i;
+					}
 					totalgenerated[j] += temparray[j];
 					ports_shm_ptr_aval[i][a].spoildate += parameters.SO_MIN_VITA + (rand() % (parameters.SO_MAX_VITA - parameters.SO_MIN_VITA + 1) - 1);
 					a += 1;
 					break;
 				case 1:
 					ports_shm_ptr_req[i][j] = temparray[j];
+					if(temparray[j] > mostrequested[j + parameters.SO_MERCI]) {
+						mostrequested[j + parameters.SO_MERCI] = temparray[j];
+						mostrequested[j] = i;
+					}
 					break;
 			}
 		}
@@ -512,7 +528,7 @@ int main (int argc, char ** argv) {
 	/*print merci report*/
 	printf("-----------------------------------\n");
 	for(i = 1; i < parameters.SO_MERCI + 1; i++) {
-		printf("MERCE %d:\n| GENERATED %d | AVAILABLE %d | SENT %d | DELIVERED %d |\n| SPOILED IN PORT %d | SPOILED IN SHIP %d |\n", i, totalgenerated[i], totalport[i], totalsent[i], totaldelivered[i], spoiledporto[i], spoilednave[i]);
+		printf("MERCE %d:\n| GENERATED %d | AVAILABLE %d | SENT %d | DELIVERED %d |\n| SPOILED IN PORT %d | SPOILED IN SHIP %d |\n| MOST AVAILABLE IN PORT %d | MOST REQUESTED IN PORT %d |\n", i, totalgenerated[i], totalport[i], totalsent[i], totaldelivered[i], spoiledporto[i], spoilednave[i], mostavailable[i], mostrequested[i]);
 	}
 
 	/*close messagequeues*/
