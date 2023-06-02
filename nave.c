@@ -221,7 +221,7 @@ int main (int argc, char * argv[]) {
 					}
 				}
 
-				/*sleep for loadtime * tonstomove*/
+				/*sleep for tonstomove / loadtime*/
 				if(tonstomove > 0) {
 					tv1.tv_sec = (int) (tonstomove / loadtime);
 					tv1.tv_nsec = (long) tonstomove / (long) loadtime * 1000000000 % 1000000000;

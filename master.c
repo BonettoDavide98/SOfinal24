@@ -322,6 +322,7 @@ int main (int argc, char ** argv) {
 		msgrcv(master_msgq, &message, (sizeof(long) + sizeof(char) * 100), 1, 0);
 		switch(message.mesg_text[0]) {
 			case 's':
+				/*register daily report from ship*/
 				strtok(message.mesg_text, ":");
 				strcpy(dayr, strtok(NULL, ":"));
 				strcpy(tempstr, strtok(NULL, ":"));
@@ -340,6 +341,7 @@ int main (int argc, char ** argv) {
 				}
 				break;
 			case 'p':
+				/*register daily report from port*/
 				if(timeended == 0) {
 					strtok(message.mesg_text, ":");
 					strcpy(portid, strtok(NULL, ":"));
@@ -419,12 +421,14 @@ int main (int argc, char ** argv) {
 				day++;
 				break;
 			case 't':
+				/*send termination signal to every port and ship*/
 				for(i = 0; i < parameters.SO_NAVI + parameters.SO_PORTI + 1; i++) {
 					kill(kid_pids[i], SIGINT);
 				}
 				timeended = 1;
 				break;
 			case 'P':
+				/*get spoiled merci for end report*/
 				strtok(message.mesg_text, ":");
 				strcpy(tempstr, strtok(NULL, ":"));
 				if(strcmp(tempstr, "end") == 0) {
@@ -435,6 +439,7 @@ int main (int argc, char ** argv) {
 				}
 				break;
 			case 'S' :
+				/*get spoiled merci for end report*/
 				strtok(message.mesg_text, ":");
 				strcpy(tempstr, strtok(NULL, ":"));
 				if(strcmp(tempstr, "end") == 0) {
