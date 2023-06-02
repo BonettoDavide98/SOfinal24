@@ -64,6 +64,12 @@ int main (int argc, char ** argv) {
 	int * mostavailable;
 	int * mostrequested;
 
+	int allinport = 0;
+	int allinship = 0;
+	int alldelivered = 0;
+	int allspoiledport = 0;
+	int allspoiledship = 0;
+
 	int flag = 1;
 	int timeended = 0;
 	int allrequestfulfilled = 0;
@@ -526,6 +532,15 @@ int main (int argc, char ** argv) {
 	}
 
 	/*print merci report*/
+	for(i = 1; i <= parameters.SO_MERCI; i++) {
+		allinport += totalport[i];
+		allinship += totalsent[i] - spoilednave[i] - totaldelivered[i];
+		alldelivered += totaldelivered[i];
+		allspoiledport += spoiledporto[i];
+		allspoiledship += spoilednave[i];
+	}
+	printf("TOTAL: AVAILABLE %d | IN SHIP %d | DELIVERED %d | SPOILED IN PORT %d | SPOILED IN SHIP %d |\n", allinport, allinship, alldelivered, allspoiledport, allspoiledship);
+
 	printf("-----------------------------------\n");
 	for(i = 1; i < parameters.SO_MERCI + 1; i++) {
 		printf("MERCE %d:\n| GENERATED %d | AVAILABLE %d | SENT %d | DELIVERED %d |\n| SPOILED IN PORT %d | SPOILED IN SHIP %d |\n| MOST AVAILABLE IN PORT %d | MOST REQUESTED IN PORT %d |\n", i, totalgenerated[i], totalport[i], totalsent[i], totaldelivered[i], spoiledporto[i], spoilednave[i], mostavailable[i], mostrequested[i]);
