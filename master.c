@@ -561,9 +561,9 @@ int getRequesting(char *posx_s, char *posy_s, struct position * portpositions, i
 
 /*load parameters from an input file; parameters must be separated by comma*/
 int read_parameters_from_file(FILE *inputfile, struct parameters * parameters) {
-	char string[256];
+	char * string = malloc(256);
 	char data[10];
-	fgets(&string, 256, inputfile);
+	fgets(string, 256, inputfile);
 
 	strcpy(data, strtok(string, ","));
 	parameters->SO_NAVI = atoi(data);
@@ -620,6 +620,8 @@ int read_parameters_from_file(FILE *inputfile, struct parameters * parameters) {
 
 	strcpy(data , strtok(NULL, ","));
 	parameters->SO_MAELSTORM = atoi(data);
+
+	free(string);
 
 	return 1;
 }
