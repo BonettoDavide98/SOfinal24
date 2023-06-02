@@ -1,8 +1,14 @@
-master.o : master.c
-	gcc -w master.c -o master.o -lm
+all: master porto nave timer
 
-porto.o : porto.c
-	gcc -w porto.c -o porto.o
+master: master.c
+	gcc -std=c89 -Wpedantic -D_GNU_SOURCE master.c -o master -lm
 
-nave.o : nave.c
-	gcc -w nave.c -o nave.o -lm
+porto: porto.c
+	gcc -std=c89 -Wpedantic -D_GNU_SOURCE porto.c -o porto
+
+nave: nave.c
+	gcc -std=c89 -Wpedantic -D_GNU_SOURCE nave.c -o nave -lm
+
+timer: timer.c
+	gcc -std=c89 -Wpedantic -D_GNU_SOURCE timer.c -o timer
+

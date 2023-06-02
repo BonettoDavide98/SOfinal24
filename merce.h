@@ -1,5 +1,3 @@
-#include <sys/time.h>
-
 struct merce {
     int type;
     int qty;

@@ -7,15 +7,15 @@
 #include <string.h>
 #include <math.h>
 #include <time.h>
-#include <signal.h>
+#include <sys/time.h>
 #include <signal.h>
 #include "merce.h"
 
 int stormduration;
 long stormtosleep = -1;
 int end = 0;
-int currentplace = 0;	//sea = 0 port = 1
-int hascargo = 0;	//no = 0 yes = 1
+int currentplace = 0;	/*sea = 0 port = 1*/
+int hascargo = 0;	/*no = 0 yes = 1*/
 
 int master_msgq;
 int shipid;
@@ -25,30 +25,24 @@ int * spoiled;
 int num_merci;
 int portsemaphore;
 
+void removeSpoiled(struct merce *);
+int loadCargo(struct merce *, struct merce, int);
+int loadCargo2(struct merce *, int, int, int, int);
+int unloadCargo(struct merce *, int *, int, int);
 void reporthandler();
 void endreporthandler();
 
 int main (int argc, char * argv[]) {
-	master_msgq =atoi(argv[6]);
-	shipid = atoi(argv[2]);
+	int i, j;
 	struct mesg_buffer message;
 	struct position pos;
 	double speed = atoi(argv[5]);
 	char posx_str[20];
-	strcpy(posx_str, argv[3]);
 	char posy_str[20];
-	strcpy(posy_str, argv[4]);
-	sscanf(argv[3], "%lf", &pos.x);
-	sscanf(argv[4], "%lf", &pos.y);
-	num_merci = atoi(argv[9]);
-	int max_slots = num_merci * 30;
+	int max_slots;
 	struct sembuf sops;
 	int master_sem_id = atoi(argv[10]);
-	spoiled = malloc((1 + num_merci) * sizeof(int));
-
-	stormduration = atoi(argv[8]);
 	char string_out[100];
-
 	char msgq_id_porto[20];
 	char shm_id_porto_req[20];
 	int *shm_ptr_porto_req;
@@ -62,39 +56,49 @@ int main (int argc, char * argv[]) {
 	char text[20];
 	int fill;
 	int loadtime;
-	int tonstomove = 0;
 	long sleeptime;
-
-	cargo = malloc(max_slots * sizeof(struct merce));
+	int splitton;
+	int flag;
+	int tonstomove = 0;
 	int cargocapacity = atoi(argv[7]);
 	int cargocapacity_free = cargocapacity;
+	int randomportflag = 1;
+	stormduration = atoi(argv[8]);
+	num_merci = atoi(argv[9]);
+	max_slots = num_merci * 30;
+	spoiled = malloc((1 + num_merci) * sizeof(int));
+	master_msgq =atoi(argv[6]);
+	shipid = atoi(argv[2]);
+	strcpy(posx_str, argv[3]);
+	strcpy(posy_str, argv[4]);
+	sscanf(argv[3], "%lf", &pos.x);
+	sscanf(argv[4], "%lf", &pos.y);
+	cargo = malloc(max_slots * sizeof(struct merce));
 
-	//initialize cargo
-	for(int c = 0; c < max_slots; c++) {
-		cargo[c].type = 0;
-		cargo[c].qty = 0;
+	/*initialize cargo*/
+	for(i= 0; i < max_slots; i++) {
+		cargo[i].type = 0;
+		cargo[i].qty = 0;
 	}
 
-	//initialize spoiled
-	for(int i = 0; i < num_merci + 1; i++) {
+	/*initialize spoiled*/
+	for(i = 0; i < num_merci + 1; i++) {
 		spoiled[i] = 0;
 	}
-
-	int randomportflag = 1;
 	message.mesg_type = 1;
 
 	signal(SIGUSR2, reporthandler);
 	signal(SIGINT, endreporthandler);
 
-	//wait for semaphore
+	/*wait for semaphore*/
 	sops.sem_num = 0;
 	sops.sem_flg = 0;
 	sops.sem_op = -1;
 	semop(master_sem_id, &sops, 1);
 
-	//ship loop, will last until interrupted by an external process
+	/*ship loop, will last until interrupted by an external process*/
 	while(1) {
-		//ask master the closest port that asks for my largest merce
+		/*ask master the closest port that asks for my largest merce*/
 		removeSpoiled(cargo);
 		strcpy(message.mesg_text, argv[2]);
 		strcat(message.mesg_text, ":");
@@ -113,22 +117,22 @@ int main (int argc, char * argv[]) {
 		}
 		msgsnd(master_msgq, &message, (sizeof(long) + sizeof(char) * 100), 0);
 
-		//wait for master answer
+		/*wait for master answer*/
 		while(msgrcv(atoi(argv[1]), &message, (sizeof(long) + sizeof(char) * 100), 1, 0) == -1) {
-			//loop until message is received
+			/*loop until message is received*/
 		}
 
-		//parse answer and go to specified location
+		/*parse answer and go to specified location*/
 		strcpy(msgq_id_porto, strtok(message.mesg_text, ":"));
 		strcpy(destx, strtok(NULL, ":"));
 		strcpy(desty, strtok(NULL, ":"));
 		sscanf(destx, "%lf", &dest.x);
 		sscanf(desty, "%lf", &dest.y);
-		//calculate travel time
+		/*calculate travel time*/
 		traveltime = (long) ((sqrt(pow((dest.x - pos.x),2) + pow((dest.y - pos.y),2)) / speed * 1000000000));
 		tv1.tv_nsec = traveltime % 1000000000;
 		tv1.tv_sec = (int) ((traveltime - tv1.tv_nsec) / 1000000000);
-		//travel
+		/*travel*/
 		nanosleep(&tv1, &tv2);
 		while(nanosleep(&tv1, &tv2) == -1) {
 			tv1 = tv2;
@@ -138,27 +142,27 @@ int main (int argc, char * argv[]) {
 		strcpy(posx_str, destx);
 		strcpy(posy_str, desty);
 		
-		//send dock request to port
+		/*send dock request to port*/
 		strcpy(message.mesg_text, "dockrq");
 		strcat(message.mesg_text, ":");
 		strcat(message.mesg_text, argv[1]);
 		msgsnd(atoi(msgq_id_porto), &message, (sizeof(long) + sizeof(char) * 30), 0);
 
-		//wait for port answer
+		/*wait for port answer*/
 		while(msgrcv(atoi(argv[1]), &message, (sizeof(long) + sizeof(char) * 50), 1, 0) == -1) {
 
 		}
 		strcpy(text, strtok(message.mesg_text, ":"));
 			
 
-		//decide what to do based on port answer
+		/*decide what to do based on port answer*/
 		if(strcmp(text, "accept") == 0) {
 			strcpy(shm_id_porto_req, strtok(NULL, ":"));
 			strcpy(shm_id_porto_aval, strtok(NULL, ":"));
 			loadtime = atoi(strtok(NULL, ":"));
 			portsemaphore = atoi(strtok(NULL, ":"));
 
-			//if port accepted the request, start loading and unloading cargo
+			/*if port accepted the request, start loading and unloading cargo*/
 			removeSpoiled(cargo);
 			if((int *) (shm_ptr_porto_req = (int *) shmat(atoi(shm_id_porto_req), NULL, 0)) == -1) {
 				printf("*** shmat error nave req ***\n");
@@ -169,7 +173,7 @@ int main (int argc, char * argv[]) {
 				randomportflag = 1;
 			}
 			
-			//check if resource is available before starting
+			/*check if resource is available before starting*/
 			sops.sem_op = -1;
 			if(randomportflag == 0 && semop(portsemaphore, &sops, 1) != -1) {
 				currentplace = 1;
@@ -177,7 +181,7 @@ int main (int argc, char * argv[]) {
 				tonstomove = unloadCargo(cargo, shm_ptr_porto_req, max_slots, num_merci);
 
 				cargocapacity_free = cargocapacity;
-				for(int i = 0; i < max_slots; i++) {
+				for(i = 0; i < max_slots; i++) {
 					if(cargo[i].type == 0) {
 						i = max_slots;
 					} else if(cargo[i].type > 0 && cargo[i].qty > 0) {
@@ -185,12 +189,12 @@ int main (int argc, char * argv[]) {
 					}
 				}
 
-				int splitton = cargocapacity_free / num_merci;
-				int flag = 1;
+				splitton = cargocapacity_free / num_merci;
+				flag = 1;
 
 				while(flag) {
 					flag = 0;
-					for(int i = 0; i < num_merci && cargocapacity_free > 0 && shm_ptr_porto_aval[i].type != 0; i++) {
+					for(i = 0; i < num_merci && cargocapacity_free > 0 && shm_ptr_porto_aval[i].type != 0; i++) {
 						if(shm_ptr_porto_aval[i].type > 0 && shm_ptr_porto_aval[i].qty > 0) {
 							if(splitton > cargocapacity_free) {
 								splitton = cargocapacity_free;
@@ -217,7 +221,7 @@ int main (int argc, char * argv[]) {
 					}
 				}
 
-				//sleep for loadtime * tonstomove
+				/*sleep for loadtime * tonstomove*/
 				if(tonstomove > 0) {
 					tv1.tv_sec = (int) (tonstomove / loadtime);
 					tv1.tv_nsec = (long) tonstomove / (long) loadtime * 1000000000 % 1000000000;
@@ -226,7 +230,7 @@ int main (int argc, char * argv[]) {
 					}
 				}
 
-				//unblock the resource
+				/*unblock the resource*/
 				sops.sem_op = 1;
 				while(semop(portsemaphore, &sops, 1) == -1) {
 					currentplace = 0;
@@ -234,7 +238,7 @@ int main (int argc, char * argv[]) {
 				currentplace = 0;
 
 				hascargo = 0;
-				for(int i = 0; i < max_slots; i++) {
+				for(i = 0; i < max_slots; i++) {
 					if(cargo[i].type == 0) {
 						i = max_slots;
 					} else if(cargo[i].qty > 0 && cargo[i].type > 0) {
@@ -243,7 +247,7 @@ int main (int argc, char * argv[]) {
 				}
 			}
 		} else {
-			//if port declined access, ask master for a different port
+			/*if port declined access, ask master for a different port*/
 			randomportflag = 1;
 		}
 	}
@@ -251,12 +255,13 @@ int main (int argc, char * argv[]) {
 	exit(0);
 }
 
-//returns largest type of merce loaded in cargo
+/*returns largest type of merce loaded in cargo*/
 int getLargestCargo(struct merce * cargo, int max_slots) {
+	int i;
 	int max = 0;
 	int imax = 0;
 
-	for(int i = 0; i < max_slots; i++) {
+	for(i = 0; i < max_slots; i++) {
 		if(cargo[i].type == 0) {
 			return imax;
 		} else if(cargo[i].type > 0 && cargo[i].qty > max) {
@@ -268,9 +273,10 @@ int getLargestCargo(struct merce * cargo, int max_slots) {
 	return imax;
 }
 
-//remove spoiled merci
+/*remove spoiled merci*/
 void removeSpoiled(struct merce *available) {
-	for(int i = 0; i < num_merci * 5; i++) {
+	int i;
+	for(i = 0; i < num_merci * 5; i++) {
 		if(available[i].type > 0 && available[i].qty > 0) {
 			if(available[i].spoildate < day) {
 				spoiled[available[i].type] += available[i].qty;
@@ -282,7 +288,8 @@ void removeSpoiled(struct merce *available) {
 }
 
 int loadCargo(struct merce * cargo, struct merce mercetoload, int max_slots) {
-	for(int i = 0; i < max_slots; i++) {
+	int i;
+	for(i = 0; i < max_slots; i++) {
 		if(cargo[i].type == mercetoload.type && cargo[i].spoildate == mercetoload.spoildate) {
 			cargo[i].qty += mercetoload.qty;
 			return mercetoload.qty;
@@ -296,7 +303,8 @@ int loadCargo(struct merce * cargo, struct merce mercetoload, int max_slots) {
 }
 
 int loadCargo2(struct merce * cargo, int type, int qty, int spoildate, int max_slots) {
-	for(int i = 0; i < max_slots; i++) {
+	int i;
+	for(i = 0; i < max_slots; i++) {
 		if(cargo[i].type == type && cargo[i].spoildate == spoildate) {
 			cargo[i].qty += qty;
 			return qty;
@@ -313,7 +321,8 @@ int loadCargo2(struct merce * cargo, int type, int qty, int spoildate, int max_s
 
 int unloadCargo(struct merce * cargo, int * requests, int max_slots, int num_merci) {
 	int tonstomove = 0;
-	for(int i = 0; i < max_slots; i++) {
+	int i;
+	for(i = 0; i < max_slots; i++) {
 		if(cargo[i].type == 0) {
 			return 0;
 		} else {
@@ -341,9 +350,9 @@ int unloadCargo(struct merce * cargo, int * requests, int max_slots, int num_mer
 
 void reporthandler() {
 	struct mesg_buffer message;
-	message.mesg_type = 1;
 	char temp[20];
 
+	message.mesg_type = 1;
 	day++;
 
 	removeSpoiled(cargo);
@@ -354,12 +363,12 @@ void reporthandler() {
 	strcat(message.mesg_text, ":");
 	if(currentplace == 0) {
 		if(hascargo == 1) {
-			strcat(message.mesg_text, "0");		//s:day:0	in sea with cargo
+			strcat(message.mesg_text, "0");		/*s:day:0	in sea with cargo*/
 		} else {
-			strcat(message.mesg_text, "1");		//s:day:1	in sea without cargo
+			strcat(message.mesg_text, "1");		/*s:day:1	in sea without cargo*/
 		}
 	} else {
-		strcat(message.mesg_text, "2");			//s:day:2	in port
+		strcat(message.mesg_text, "2");			/*s:day:2	in port*/
 	}
 
 	msgsnd(master_msgq, &message, (sizeof(long) + sizeof(char) * 6), 0);
@@ -367,13 +376,14 @@ void reporthandler() {
 
 void endreporthandler() {
 	struct mesg_buffer message;
-	message.mesg_type = 1;
+	int i;
 	char temp[20];
-	struct timeval sleep;
+	struct timespec sleep;
+	message.mesg_type = 1;
 	sleep.tv_sec = 0;
-	sleep.tv_usec = 100;
+	sleep.tv_nsec = 100;
 	
-	for(int i = 1; i < num_merci + 1; i++) {
+	for(i = 1; i < num_merci + 1; i++) {
 		if(spoiled[i] > 0) {
 			strcpy(message.mesg_text, "S");
 			strcat(message.mesg_text, ":");
